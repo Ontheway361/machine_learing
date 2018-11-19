@@ -1,2 +1,2 @@
-test user.name1
+test user.name
 
