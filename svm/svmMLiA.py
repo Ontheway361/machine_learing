@@ -26,10 +26,10 @@ def plotDataSet(data, label, alpha=None, bias=None):
     index_pos = [True if ele > 0 else False for ele in label]
     index_neg = [True if ele < 0 else False for ele in label]
     data_pos = data[index_pos,:]
-    data_neg = data[index_neg,:]        
+    data_neg = data[index_neg,:]
     ax.scatter(data_pos[:,0], data_pos[:,1], marker = 'o', color = 'r', s = 40, label = 'pos')
     ax.scatter(data_neg[:,0], data_neg[:,1], marker = 'x', color = 'g', s = 40, label = 'neg')
-    
+
     if alpha is not None:
         print('hello world')
         index_sv_pos = [True if inst[0] > 0 and inst[1] > 0 else False for inst in zip(label,alpha)]
@@ -48,7 +48,8 @@ def plotDataSet(data, label, alpha=None, bias=None):
     plt.xlabel('x-axis')
     plt.ylabel('y-axis')
     plt.show()
-    plt.pause(0.1); plt.close()
+    # plt.pause(0.1);
+    plt.close()
 
 def selectJrand(i,m):
     j=i #we want to select any J not equal to i
@@ -133,15 +134,15 @@ def getSMO_runningtime(testNum):
     finish_time = time.time()
     print("After %d epoches test, average running time is %.4f\n"%(testNum, (finish_time-start_time)/testNum))
 
-def kernelTrans(X, A, kTup): #calc the kernel or transform data to a higher dimensional space
+def kernelTrans(X, A, kernel_choice): #calc the kernel or transform data to a higher dimensional space
     m,n = np.shape(X)
     K = np.mat(np.zeros((m,1)))
-    if kTup[0]=='lin': K = X * A.T   #linear kernel
-    elif kTup[0]=='rbf':
+    if kernel_choice[0]=='lin': K = X * A.T   #linear kernel
+    elif kernel_choice[0]=='rbf':
+        const_factor = -1*kernel_choice[1]**2
         for j in range(m):
             deltaRow = X[j,:] - A
-            K[j] = deltaRow*deltaRow.T
-        K = math.exp(K/(-1*kTup[1]**2)) #divide in NumPy is element-wise not matrix like Matlab
+            K[j] = math.exp(deltaRow*deltaRow.T/const_factor)
     else: raise NameError('Houston We Have a Problem -- That Kernel is not recognized')
     return K
 
@@ -155,7 +156,7 @@ class optStruct:
         self.alphas = np.mat(np.zeros((self.m,1)))
         self.b = 0
         self.eCache = np.mat(np.zeros((self.m,2))) #first column is valid flag
-        self.K = np.mat(np.zeros((self.m,self.m)))
+        self.K = np.mat(np.zeros((self.m,self.m)))  # kernel matirx
         for i in range(self.m):
             self.K[:,i] = kernelTrans(self.X, self.X[i,:], kTup)
 
@@ -187,7 +188,7 @@ def updateEk(oS, k):#after any alpha has changed update the new value in the cac
 
 def innerL(i, oS):
     Ei = calcEk(oS, i)
-    if ((oS.labelMat[i]*Ei < -oS.tol) and (oS.alphas[i] < oS.C)) or ((oS.labelMat[i]*Ei > oS.tol) and (oS.alphas[i] > 0)):
+    if ( (oS.labelMat[i]*Ei < -oS.tol) and (oS.alphas[i] < oS.C) ) or ( (oS.labelMat[i]*Ei > oS.tol) and (oS.alphas[i] > 0) ):
         j,Ej = selectJ(i, oS, Ei) #this has been changed from selectJrand
         alphaIold = oS.alphas[i].copy(); alphaJold = oS.alphas[j].copy();
         if (oS.labelMat[i] != oS.labelMat[j]):
@@ -197,7 +198,7 @@ def innerL(i, oS):
             L = max(0, oS.alphas[j] + oS.alphas[i] - oS.C)
             H = min(oS.C, oS.alphas[j] + oS.alphas[i])
         if L==H: print("L==H"); return 0
-        eta = 2.0 * oS.K[i,j] - oS.K[i,i] - oS.K[j,j] #changed for kernel
+        eta = 2.0 * oS.K[i,j] - oS.K[i,i] - oS.K[j,j] # changed for kernel
         if eta >= 0: print("eta>=0"); return 0
         oS.alphas[j] -= oS.labelMat[j]*(Ei - Ej)/eta
         oS.alphas[j] = clipAlpha(oS.alphas[j],H,L)
@@ -213,8 +214,8 @@ def innerL(i, oS):
         return 1
     else: return 0
 
-def smoP(dataMatIn, classLabels, C, toler, maxIter,kTup=('lin', 0)):    #full Platt SMO
-    oS = optStruct(np.mat(dataMatIn), np.mat(classLabels).transpose(),C,toler, kTup)
+def smoP(dataMatIn, classLabels, C, toler, maxIter,kernel_choice=('lin', 0)):    #full Platt SMO
+    oS = optStruct(np.mat(dataMatIn), np.mat(classLabels).transpose(),C,toler, kernel_choice)
     iter = 0
     entireSet = True; alphaPairsChanged = 0
     while (iter < maxIter) and ((alphaPairsChanged > 0) or (entireSet)):
@@ -246,11 +247,12 @@ def calcWs(alphas,dataArr,classLabels):
 def testRbf(k1=1.3):
     dataArr,labelArr = loadDataSet('testSetRBF.txt')
     b,alphas = smoP(dataArr, labelArr, 200, 0.0001, 10000, ('rbf', k1)) #C=200 important
-    datMat=np.mat(dataArr); labelMat = np.mat(labelArr).transpose()
-    svInd=np.nonzero(alphas.A>0)[0]
-    sVs=datMat[svInd] #get matrix of only support vectors
+    datMat = np.mat(dataArr); labelMat = np.mat(labelArr).transpose()
+    # return the index of row and col that satisfy condition
+    svInd = np.nonzero(alphas.A>0)[0]
+    sVs = datMat[svInd] #get matrix of only support vectors
     labelSV = labelMat[svInd];
-    print("there are %d Support Vectors" % np.shape(sVs)[0])
+    print("there are %d Support Vectors,total number of instances : %d" % (np.shape(sVs)[0],np.shape(datMat)[0]))
     m,n = np.shape(datMat)
     errorCount = 0
     for i in range(m):
