@@ -4,6 +4,8 @@ Adaboost is short for Adaptive Boosting
 @author: Peter
 '''
 from numpy import *
+from IPython import embed
+import matplotlib.pyplot as plt
 
 def loadSimpData():
     datMat = matrix([[ 1. ,  2.1],
@@ -15,7 +17,7 @@ def loadSimpData():
     return datMat,classLabels
 
 def loadDataSet(fileName):      #general function to parse tab -delimited floats
-    numFeat = len(open(fileName).readline().split('\t')) #get number of fields 
+    numFeat = len(open(fileName).readline().split('\t')) # get number of fields
     dataMat = []; labelMat = []
     fr = open(fileName)
     for line in fr.readlines():
@@ -27,14 +29,14 @@ def loadDataSet(fileName):      #general function to parse tab -delimited floats
         labelMat.append(float(curLine[-1]))
     return dataMat,labelMat
 
-def stumpClassify(dataMatrix,dimen,threshVal,threshIneq):#just classify the data
+def stumpClassify(dataMatrix,dimen,threshVal,threshIneq): # just classify the data
     retArray = ones((shape(dataMatrix)[0],1))
     if threshIneq == 'lt':
         retArray[dataMatrix[:,dimen] <= threshVal] = -1.0
     else:
         retArray[dataMatrix[:,dimen] > threshVal] = -1.0
     return retArray
-    
+
 
 def buildStump(dataArr,classLabels,D):
     dataMatrix = mat(dataArr); labelMat = mat(classLabels).T
@@ -51,13 +53,14 @@ def buildStump(dataArr,classLabels,D):
                 errArr = mat(ones((m,1)))
                 errArr[predictedVals == labelMat] = 0
                 weightedError = D.T*errArr  #calc total error multiplied by D
-                #print "split: dim %d, thresh %.2f, thresh ineqal: %s, the weighted error is %.3f" % (i, threshVal, inequal, weightedError)
+                print("split: dim %d, thresh %.2f, thresh ineqal: %s, the weighted error is %.3f" % (i, threshVal, inequal, weightedError))
                 if weightedError < minError:
                     minError = weightedError
                     bestClasEst = predictedVals.copy()
                     bestStump['dim'] = i
                     bestStump['thresh'] = threshVal
                     bestStump['ineq'] = inequal
+    print("best split info : dim : %d \t thresh : %.4f \t ineq : %s \n"%(bestStump['dim'], bestStump['thresh'], bestStump['ineq']))
     return bestStump,minError,bestClasEst
 
 
@@ -70,7 +73,7 @@ def adaBoostTrainDS(dataArr,classLabels,numIt=40):
         bestStump,error,classEst = buildStump(dataArr,classLabels,D)#build Stump
         #print "D:",D.T
         alpha = float(0.5*log((1.0-error)/max(error,1e-16)))#calc alpha, throw in max(error,eps) to account for error=0
-        bestStump['alpha'] = alpha  
+        bestStump['alpha'] = alpha
         weakClassArr.append(bestStump)                  #store Stump Params in Array
         #print "classEst: ",classEst.T
         expon = multiply(-1*alpha*mat(classLabels).T,classEst) #exponent for D calc, getting messy
@@ -81,7 +84,7 @@ def adaBoostTrainDS(dataArr,classLabels,numIt=40):
         #print "aggClassEst: ",aggClassEst.T
         aggErrors = multiply(sign(aggClassEst) != mat(classLabels).T,ones((m,1)))
         errorRate = aggErrors.sum()/m
-        print "total error: ",errorRate
+        print("total error: ",errorRate)
         if errorRate == 0.0: break
     return weakClassArr
 
@@ -94,11 +97,31 @@ def adaClassify(datToClass,classifierArr):
                                  classifierArr[i]['thresh'],\
                                  classifierArr[i]['ineq'])#call stump classify
         aggClassEst += classifierArr[i]['alpha']*classEst
-        print aggClassEst
+        print(aggClassEst)
     return sign(aggClassEst)
 
+def plotInstance(data, label):
+    import numpy as np
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    if isinstance(data, np.matrixlib.defmatrix.matrix):
+        data = data.A
+
+    pos_index = [True if val==1.0 else False for val in label]
+    neg_index = [True if val==-1.0 else False for val in label]
+    data_pos = data[pos_index,:]
+    data_neg = data[neg_index,:]
+
+    ax.scatter(data_pos[:,0], data_pos[:,1], marker = 'o', color = 'r', s = 40, label = 'pos')
+    ax.scatter(data_neg[:,0], data_neg[:,1], marker = 'x', color = 'g', s = 40, label = 'neg')
+    # plt.show()
+    # plt.pause(1)
+    plt.savefig('./dataset.png')
+    plt.close()
+
+
 def plotROC(predStrengths, classLabels):
-    import matplotlib.pyplot as plt
+
     cur = (1.0,1.0) #cursor
     ySum = 0.0 #variable to calculate AUC
     numPosClas = sum(array(classLabels)==1.0)
@@ -122,4 +145,4 @@ def plotROC(predStrengths, classLabels):
     plt.title('ROC curve for AdaBoost horse colic detection system')
     ax.axis([0,1,0,1])
     plt.show()
-    print "the Area Under the Curve is: ",ySum*xStep
+    print("the Area Under the Curve is: ", ySum*xStep)
