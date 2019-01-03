@@ -121,7 +121,6 @@ def plotInstance(data, label):
 
 
 def plotROC(predStrengths, classLabels):
-
     cur = (1.0,1.0) #cursor
     ySum = 0.0 #variable to calculate AUC
     numPosClas = sum(array(classLabels)==1.0)
